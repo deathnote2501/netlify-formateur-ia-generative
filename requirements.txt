@@ -8,3 +8,4 @@ fastapi-users[sqlmodel]
 python-multipart
 passlib[bcrypt]
 email-validator
+stripe
