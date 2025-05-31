@@ -4,3 +4,7 @@ sqlmodel
 alembic
 psycopg2-binary
 pydantic-settings
+fastapi-users[sqlmodel]
+python-multipart
+passlib[bcrypt]
+email-validator

@@ -1,15 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select # Make sure select is imported
-from typing import Optional # Added for Optional type hint
+from sqlmodel import Session, select
+from typing import Optional # Ensure Optional is imported
+
+# Imports for fastapi-users
+import fastapi_users # Not directly used here but good for context
+from app.models.user_models import User # User model for dependency
+
+# Define current_user dependency (should match the one in main.py for consistency)
+# For chat, we require an active user.
+current_active_user = fastapi_users.current_user(active=True)
+
 
 from app.db.session import get_session
 from app.models.message_models import Message
 from app.models.persona_models import Persona
-from app.models.video_models import Video # New import for Video model
+from app.models.video_models import Video
 from app.schemas.chat_schemas import ChatMessageCreate, ChatMessageResponse
 from app.services.chat_service import get_ia_response
-# Assuming the FastAPI app is served at http://localhost:8000
-# and static files are mounted at /static
+
 BASE_URL = "http://localhost:8000"
 
 router = APIRouter()
@@ -18,13 +26,13 @@ router = APIRouter()
 async def send_message(
     *,
     session: Session = Depends(get_session),
-    chat_input: ChatMessageCreate
+    chat_input: ChatMessageCreate,
+    user: User = Depends(current_active_user) # Added dependency for authenticated user
 ):
     persona = session.get(Persona, chat_input.persona_id)
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
 
-    # Get structured response from service
     service_response = await get_ia_response(
         user_message=chat_input.user_message,
         persona_system_prompt=persona.system_prompt
@@ -32,44 +40,36 @@ async def send_message(
     ia_text_response = service_response["text_response"]
     requested_emotion_action_key = service_response["requested_emotion_action_key"]
 
-    # Video selection logic
     video_url_to_play: Optional[str] = None
     statement = select(Video).where(Video.persona_id == persona.id).where(Video.emotion_action_key == requested_emotion_action_key)
     video_record = session.exec(statement).first()
 
     if video_record:
-        # Ensure this path construction matches how static files are served
         video_url_to_play = f"{BASE_URL}/static/videos/{video_record.video_path}"
-    else:
-        # Optional: Fallback to a default neutral video for the persona if no specific action video is found
-        # statement_neutral = select(Video).where(Video.persona_id == persona.id).where(Video.emotion_action_key == "neutral_loop") # Example key
-        # neutral_video_record = session.exec(statement_neutral).first()
-        # if neutral_video_record:
-        #     video_url_to_play = f"{BASE_URL}/static/videos/{neutral_video_record.video_path}"
-        pass # For now, if specific video not found, video_url_to_play remains None
 
-    # Save user message
+    # Save user message, now associated with the authenticated user
     user_db_message = Message(
         content=chat_input.user_message,
         is_from_user=True,
-        # user_id can be added here if authentication is implemented
+        user_id=user.id # Associate message with user.id
     )
     session.add(user_db_message)
 
-    # Save IA message (text part)
+    # Save IA message
+    # IA messages are not directly from a 'user' in the User table, so user_id remains None or is handled differently.
+    # For now, user_id is appropriately None for AI messages as per model definition (Optional).
     ia_db_message = Message(
-        content=ia_text_response, # Use the text part of the service response
+        content=ia_text_response,
         is_from_user=False,
+        user_id=None # Explicitly None for IA, or could be user.id if we want to track who triggered the IA
     )
     session.add(ia_db_message)
 
     session.commit()
-    # session.refresh(user_db_message)
-    # session.refresh(ia_db_message)
 
     return ChatMessageResponse(
-        ia_response=ia_text_response, # Use the text part
+        ia_response=ia_text_response,
         user_message_content=chat_input.user_message,
         persona_name=persona.name,
-        video_url_to_play=video_url_to_play # Include the selected video URL
+        video_url_to_play=video_url_to_play
     )
