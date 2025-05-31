@@ -1,27 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { currentUser, isAuthenticated, fetchCurrentUser, logoutUser, authLoading } from '$lib/stores/authStore';
-  import { navigating } from '$app/stores'; // To potentially re-fetch user on navigation if needed
-  import { base } from '$app/paths'; // For base path prefixing if deployed to a subpath
+  import {
+    currentUser, isAuthenticated, fetchCurrentUser, logoutUser, authLoading,
+    subscription, isSubscribedActive // Import new subscription stores
+  } from '$lib/stores/authStore';
+  import { navigating } from '$app/stores';
+  import { base } from '$app/paths';
 
   onMount(async () => {
-    // Initial fetch of current user state when the layout mounts
     await fetchCurrentUser();
   });
 
-  // Optional: Re-check user status on navigation end if not currently navigating and not authenticated.
-  // This can be useful if a cookie might have changed status in another tab, or expired.
-  // However, it can also lead to many requests. Use with caution or a more sophisticated strategy.
-  // $: if ($navigating === null && !$isAuthenticated && !$authLoading) {
-  //   // console.log("Checking auth status after navigation...");
-  //   // fetchCurrentUser(); // Be careful with this, might cause excessive calls.
-  // }
-
   function handleLogout() {
     logoutUser().then(() => {
-      // Optional: force a page reload or navigation to ensure UI updates correctly if needed
-      // window.location.href = `${base}/auth/login`; // Or use goto
+      // window.location.href = `${base}/auth/login`;
     });
+  }
+
+  function formatSubscriptionDate(isoDateString: string | null): string {
+    if (!isoDateString) return 'N/A';
+    try {
+      return new Date(isoDateString).toLocaleDateString();
+    } catch (e) {
+      return 'Invalid Date';
+    }
   }
 </script>
 
@@ -33,6 +35,18 @@
       <span>Loading auth...</span>
     {:else if $isAuthenticated && $currentUser}
       <span class="user-greeting">Bienvenue, {$currentUser.email}!</span> |
+      {#if $isSubscribedActive && $subscription?.current_period_end}
+        <span class="subscription-status active">
+          Abonné jusqu'au {formatSubscriptionDate($subscription.current_period_end)}
+        </span> |
+      {:else if $subscription && $subscription.status !== 'active'}
+        <span class="subscription-status inactive">
+          Abonnement: {$subscription.status}
+        </span> |
+        <a href="{base}/subscribe">S'abonner</a> |
+      {:else}
+        <a href="{base}/subscribe">S'abonner</a> |
+      {/if}
       <button on:click={handleLogout} class="logout-button">Déconnexion</button>
     {:else}
       <a href="{base}/auth/login">Connexion</a> |
@@ -50,6 +64,7 @@
 </div>
 
 <style>
+  /* Existing styles from previous step remain */
   .app-container {
     display: flex;
     flex-direction: column;
@@ -107,5 +122,21 @@
     color: #333;
     font-size: 0.9rem;
     border-top: 1px solid #ddd;
+  }
+
+  /* New styles for subscription status */
+  .subscription-status {
+    font-size: 0.9em;
+    padding: 0.2em 0.5em;
+    border-radius: 4px;
+    margin-right: 0.75rem; /* Consistent with other nav items */
+  }
+  .subscription-status.active {
+    background-color: #28a745; /* Green for active */
+    color: white;
+  }
+  .subscription-status.inactive {
+    background-color: #ffc107; /* Yellow for inactive/other statuses */
+    color: #333;
   }
 </style>

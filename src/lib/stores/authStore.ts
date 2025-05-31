@@ -1,8 +1,7 @@
 import { writable, type Writable } from 'svelte/store';
-import { browser } from '$app/environment'; // To ensure fetch only runs client-side if needed for certain calls
-import { goto } from '$app/navigation'; // For optional redirection on logout
+import { browser } from '$app/environment';
+import { goto } from '$app/navigation'; // Kept for logout redirect if re-enabled
 
-// User interface based on fastapi-users UserRead schema (integer ID)
 export interface User {
   id: number;
   email: string;
@@ -12,38 +11,73 @@ export interface User {
   // Add any other fields from your UserRead schema if customized
 }
 
+// Existing stores
 export const currentUser: Writable<User | null> = writable(null);
 export const isAuthenticated: Writable<boolean> = writable(false);
-// Optional: For more granular UI updates during auth operations
 export const authLoading: Writable<boolean> = writable(false);
 
-// Base URL for API calls - adjust if your setup is different
-// If SvelteKit's dev server proxies, relative paths are fine.
-// Otherwise, use full backend URL e.g., 'http://localhost:8000'
-const API_BASE_URL = ''; // Assuming same origin or proxy
+// New stores for subscription status
+export interface SubscriptionDetails {
+    status: string;
+    current_period_end: string | null; // ISO date string from backend
+    // Add other fields from your SubscriptionStatusResponse if needed
+}
+export const subscription: Writable<SubscriptionDetails | null> = writable(null);
+export const isSubscribedActive: Writable<boolean> = writable(false); // Derived store for easy checking of active status
+
+const API_BASE_URL = '';
 
 export async function fetchCurrentUser() {
-  if (!browser) return; // fetchCurrentUser should primarily run on client
-
+  if (!browser) return;
   authLoading.set(true);
+  currentUser.set(null); // Reset before fetching
+  isAuthenticated.set(false);
+  subscription.set(null); // Reset subscription state too
+  isSubscribedActive.set(false);
+
   try {
-    const response = await fetch(`${API_BASE_URL}/users/me`);
-    if (response.ok) {
-      const userData: User = await response.json();
+    const userResponse = await fetch(`${API_BASE_URL}/users/me`);
+    if (userResponse.ok) {
+      const userData: User = await userResponse.json();
       currentUser.set(userData);
       isAuthenticated.set(true);
+
+      // If authenticated, try to fetch subscription status
+      try {
+        const subResponse = await fetch(`${API_BASE_URL}/api/v1/subscriptions/subscription-status`);
+        if (subResponse.ok) {
+          const subData: SubscriptionDetails = await subResponse.json();
+          subscription.set(subData);
+          // Assuming 'active' is the status for a currently valid subscription
+          if (subData.status === 'active') {
+            isSubscribedActive.set(true);
+          } else {
+            isSubscribedActive.set(false);
+          }
+        } else {
+          console.warn("Could not fetch subscription status:", subResponse.statusText);
+          subscription.set(null); // Clear if fetch fails or no subscription
+          isSubscribedActive.set(false);
+        }
+      } catch (subError) {
+        console.error("Error fetching subscription status:", subError);
+        subscription.set(null);
+        isSubscribedActive.set(false);
+      }
+
     } else {
-      currentUser.set(null);
-      isAuthenticated.set(false);
-      if (response.status === 401) {
-        // Unauthorized, e.g. cookie expired or invalid
-        console.log("Session expired or user not authenticated.");
+      // Handled: currentUser, isAuthenticated, subscription, isSubscribedActive already reset or false
+      if (userResponse.status === 401) {
+        console.log("Session expired or user not authenticated (fetchCurrentUser).");
       }
     }
   } catch (error) {
     console.error("Error fetching current user:", error);
+    // Ensure all states are reset on major error
     currentUser.set(null);
     isAuthenticated.set(false);
+    subscription.set(null);
+    isSubscribedActive.set(false);
   } finally {
     authLoading.set(false);
   }
@@ -51,30 +85,18 @@ export async function fetchCurrentUser() {
 
 export async function logoutUser() {
   if (!browser) return;
-
   authLoading.set(true);
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/jwt/logout`, { method: 'POST' });
-    // fastapi-users logout returns 200 OK on success, or 401 if not authenticated
-    if (response.ok || response.status === 401) {
-      currentUser.set(null);
-      isAuthenticated.set(false);
-      console.log("Logout successful or user was already logged out.");
-      // Optional: Redirect to login page
-      // await goto('/auth/login');
-    } else {
-      // Handle unexpected errors from logout endpoint
-      console.error("Logout failed with status:", response.status, response.statusText);
-      // Potentially still clear local state as a best effort
-      currentUser.set(null);
-      isAuthenticated.set(false);
-    }
+    await fetch(`${API_BASE_URL}/auth/jwt/logout`, { method: 'POST' });
+    // Regardless of response for logout (as cookie is HttpOnly), clear local state
   } catch (error) {
-    console.error("Error during logout:", error);
-    // Potentially still clear local state
+    console.error("Error during logout fetch:", error);
+  } finally {
     currentUser.set(null);
     isAuthenticated.set(false);
-  } finally {
+    subscription.set(null); // Clear subscription state on logout
+    isSubscribedActive.set(false);
     authLoading.set(false);
+    // Optional: await goto('/auth/login');
   }
 }
