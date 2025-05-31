@@ -7,3 +7,4 @@ class Message(SQLModel, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="user.id", nullable=True)
     content: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    is_from_user: bool = Field(default=True) # New field, assuming default is True (message from user)
