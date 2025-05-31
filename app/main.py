@@ -3,10 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 import fastapi_users
+import logging # New import
+
+# --- Logging Configuration ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("AnimeMateApp") # Specific logger name for the app
+# --- End Logging Configuration ---
+
 
 # User and Auth related imports
 from app.auth.transport import auth_backend
-# from app.auth.manager import get_user_manager # Not directly used in main.py for router setup
 from fastapi_users.schemas import UserRead, UserCreate
 from app.models.user_models import User
 
@@ -15,8 +25,8 @@ from app.db.session import create_db_and_tables
 # Endpoint Routers
 from app.api.endpoints import utils as utils_router
 from app.api.endpoints import chat as chat_router
-from app.api.endpoints import stripe_webhooks as stripe_webhooks_router # New import
-from app.api.endpoints import subscriptions as subscriptions_router     # New import
+from app.api.endpoints import stripe_webhooks as stripe_webhooks_router
+from app.api.endpoints import subscriptions as subscriptions_router
 
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -45,12 +55,12 @@ app.add_middleware(
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
-    tags=["Auth"], # Capitalized Tag
+    tags=["Auth"],
 )
 app.include_router(
     fastapi_users.get_register_router(UserRead, UserCreate),
     prefix="/auth",
-    tags=["Auth"], # Capitalized Tag
+    tags=["Auth"],
 )
 
 # --- Application Routers ---
@@ -60,12 +70,12 @@ app.include_router(chat_router.router, prefix="/api/v1/chat", tags=["Chat"])
 # --- Stripe Routers ---
 app.include_router(
     subscriptions_router.router,
-    prefix="/api/v1/subscriptions", # Added /api/v1 prefix for consistency
+    prefix="/api/v1/subscriptions",
     tags=["Subscriptions"]
 )
 app.include_router(
     stripe_webhooks_router.router,
-    prefix="/webhooks", # Webhooks often don't have /api/v1 prefix
+    prefix="/webhooks",
     tags=["Stripe Webhooks"]
 )
 
@@ -78,4 +88,6 @@ async def authenticated_route(user: User = Depends(current_active_user)):
 
 @app.on_event("startup")
 def on_startup():
+    logger.info("AnimeMate Application startup complete. Initializing database tables...")
     create_db_and_tables()
+    logger.info("Database tables initialization process finished.")

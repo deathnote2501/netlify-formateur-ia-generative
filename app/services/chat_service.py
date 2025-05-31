@@ -1,19 +1,21 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional # Added Optional
 
-async def get_ia_response(user_message: str, persona_system_prompt: str) -> Dict[str, Any]:
-    """
-    Simulates a response from an AI, now returning a structure with text and an emotion/action key.
-    For MVP, this does not call any external AI service.
-    """
+async def get_ia_response(
+    user_message: str,
+    persona_system_prompt: str,
+    conversation_history: Optional[str] = None # New parameter
+) -> Dict[str, Any]:
     text_response: str
     requested_emotion_action_key: str
 
-    if "sauter" in user_message.lower(): # Simple keyword check for simulation
-        text_response = f"Réponse IA (simulée pour persona avec prompt '{persona_system_prompt}'): D'accord, je saute !"
-        requested_emotion_action_key = "jump_test" # Key to look up a specific video
+    history_context = f" (Historique: '{conversation_history}')" if conversation_history else ""
+
+    if "sauter" in user_message.lower():
+        text_response = f"Réponse IA (simulée pour persona '{persona_system_prompt}'{history_context}): D'accord, je saute !"
+        requested_emotion_action_key = "jump_test"
     else:
-        text_response = f"Réponse IA (simulée pour persona avec prompt '{persona_system_prompt}'): J'ai bien reçu votre message '{user_message}'."
-        requested_emotion_action_key = "neutral_test" # Key for a neutral/default video or action
+        text_response = f"Réponse IA (simulée pour persona '{persona_system_prompt}'{history_context}): J'ai bien reçu '{user_message}'."
+        requested_emotion_action_key = "neutral_test"
 
     return {
         "text_response": text_response,
@@ -25,7 +27,7 @@ async def get_ia_response(user_message: str, persona_system_prompt: str) -> Dict
 # from app.core.config import settings
 # import json # Assuming Gemini might return a JSON string that needs parsing
 #
-# async def get_real_ia_response(user_message: str, persona_system_prompt: str) -> Dict[str, Any]:
+# async def get_real_ia_response(user_message: str, persona_system_prompt: str, conversation_history: Optional[str] = None) -> Dict[str, Any]:
 #     client = GeminiClient(api_key=settings.GEMINI_API_KEY)
 #     try:
 #         # This prompt needs to instruct Gemini to return a JSON with specific keys
@@ -33,7 +35,8 @@ async def get_ia_response(user_message: str, persona_system_prompt: str) -> Dict
 #             "Vous êtes un assistant IA. Répondez à l'utilisateur et déterminez une émotion/action clé appropriée. "
 #             "Retournez votre réponse sous forme d'un objet JSON avec les clés 'text_response' (string) et 'requested_emotion_action_key' (string, ex: 'happy', 'curious', 'nod')."
 #         )
-#         full_prompt = f"{structured_prompt_instruction}\n\nSystem Prompt pour Persona: {persona_system_prompt}\n\nUser: {user_message}\nAI (JSON Response):"
+#         history_for_prompt = f"\n\nConversation History:\n{conversation_history}" if conversation_history else ""
+#         full_prompt = f"{structured_prompt_instruction}\n\nSystem Prompt pour Persona: {persona_system_prompt}{history_for_prompt}\n\nUser: {user_message}\nAI (JSON Response):"
 #
 #         raw_response = await client.generate_text(prompt=full_prompt, max_tokens=200) # or similar method
 #

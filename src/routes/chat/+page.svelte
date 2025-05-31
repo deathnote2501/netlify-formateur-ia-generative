@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, afterUpdate } from 'svelte';
+  import { onMount, afterUpdate, tick } from 'svelte'; // Ensure tick is imported
 
   type Message = {
     text: string;
@@ -56,6 +56,8 @@
       ...messages,
       { text: trimmedMessage, from: 'user', timestamp: new Date() },
     ];
+    await tick(); // Wait for DOM update for user message
+
     const messageToSend = trimmedMessage;
     currentUserMessage = '';
     isLoading = true;
@@ -89,6 +91,7 @@
           videoUrl: data.video_url_to_play // Store the video that came with this message
         },
       ];
+      await tick(); // Wait for DOM update for IA message
 
       if (videoElement && data.video_url_to_play) {
         currentVideoUrl = data.video_url_to_play;
@@ -130,6 +133,7 @@
         ...messages,
         { text: `Failed to get response: ${errorMessage}`, from: 'error', timestamp: new Date() },
       ];
+      await tick(); // Wait for DOM update for error message
     } finally {
       isLoading = false;
     }
@@ -326,14 +330,17 @@
   }
 
   .send-button {
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem; /* Changed from 0.75rem 1.25rem */
     background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 20px;
+    border-radius: 4px; /* Changed from 20px */
     cursor: pointer;
     font-size: 1rem;
+    font-weight: bold; /* Added */
     transition: background-color 0.2s;
+    min-width: 80px; /* Ensure a decent min width */
+    text-align: center;
   }
 
   .send-button:hover {
