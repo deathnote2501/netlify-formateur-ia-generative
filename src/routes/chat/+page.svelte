@@ -6,6 +6,7 @@
     from: 'user' | 'ia' | 'system' | 'error';
     personaName?: string;
     timestamp: Date;
+    videoUrl?: string; // Optional: to store the video that was played with this IA message
   };
 
   let messages: Message[] = [];
@@ -14,6 +15,12 @@
   let isLoading: boolean = false;
   let messagesAreaElement: HTMLDivElement;
 
+  // Video related state variables
+  const neutralVideoUrl: string = 'http://localhost:8000/static/videos/default_persona/neutral_loop.mp4'; // Full URL
+  let currentVideoUrl: string = neutralVideoUrl; // Initially set to neutral
+  let videoElement: HTMLVideoElement | null = null;
+  let previousOnEndedHandler: (() => void) | null = null; // To manage onended listeners
+
   afterUpdate(() => {
     if (messagesAreaElement) {
       messagesAreaElement.scrollTop = messagesAreaElement.scrollHeight;
@@ -21,8 +28,21 @@
   });
 
   onMount(() => {
+    // Bind to the video element
+    videoElement = document.getElementById('characterVideo') as HTMLVideoElement;
+
+    if (videoElement) {
+      videoElement.src = neutralVideoUrl;
+      videoElement.loop = true;
+      videoElement.play().catch(error => console.error("Error attempting to play neutral video:", error)); // Autoplay might be blocked
+    }
+
     messages = [
-      { text: "Welcome to the chat! Type your message below and press Enter or click Send. You are chatting with Persona ID " + currentPersonaId , from: 'system', timestamp: new Date() }
+      {
+        text: "Welcome to the chat! Type your message below. You are chatting with Persona ID " + currentPersonaId,
+        from: 'system',
+        timestamp: new Date()
+      }
     ];
   });
 
@@ -31,6 +51,7 @@
     if (!trimmedMessage) {
       return;
     }
+
     messages = [
       ...messages,
       { text: trimmedMessage, from: 'user', timestamp: new Date() },
@@ -55,11 +76,50 @@
         const errorData = await response.json().catch(() => ({ detail: "Unknown server error" }));
         throw new Error(`Server error: ${response.status} ${response.statusText}. ${errorData.detail || ''}`);
       }
-      const data = await response.json();
+
+      const data = await response.json(); // Expects { ia_response, user_message_content, persona_name, video_url_to_play? }
+
       messages = [
         ...messages,
-        { text: data.ia_response, from: 'ia', personaName: data.persona_name, timestamp: new Date() },
+        {
+          text: data.ia_response,
+          from: 'ia',
+          personaName: data.persona_name,
+          timestamp: new Date(),
+          videoUrl: data.video_url_to_play // Store the video that came with this message
+        },
       ];
+
+      if (videoElement && data.video_url_to_play) {
+        currentVideoUrl = data.video_url_to_play;
+        videoElement.src = currentVideoUrl;
+        videoElement.loop = false;
+
+        // Clear previous listener before adding a new one
+        if (previousOnEndedHandler) {
+            videoElement.removeEventListener('ended', previousOnEndedHandler);
+        }
+
+        previousOnEndedHandler = () => {
+          if (videoElement) { // Check if videoElement still exists
+            videoElement.src = neutralVideoUrl;
+            videoElement.loop = true;
+            currentVideoUrl = neutralVideoUrl; // Update currentVideoUrl state
+            videoElement.play().catch(error => console.error("Error attempting to play neutral video after action ended:", error));
+          }
+        };
+        videoElement.addEventListener('ended', previousOnEndedHandler);
+
+        videoElement.play().catch(error => console.error("Error attempting to play action video:", error));
+
+      } else if (videoElement && videoElement.src !== neutralVideoUrl && !videoElement.loop) {
+        // If no specific video is sent, and current video is an action video (not looping)
+        // This case might be complex if the action video is still playing.
+        // For simplicity, the onended handler should cover reverting to neutral.
+        // If an action video is playing and a new message comes *without* a video,
+        // we let the current action video finish and its onended handler will revert to neutral.
+      }
+
     } catch (error) {
       console.error('Failed to send message:', error);
       let errorMessage = 'Error communicating with the server.';
@@ -82,6 +142,21 @@
     }
   }
 </script>
+
+<!-- New Video Element Section -->
+<div class="video-container" style="text-align: center; margin-bottom: 1rem; background-color: #1a1a1a; padding: 0.5rem; border-radius: 8px;">
+  <video
+    id="characterVideo"
+    width="320"
+    height="240"
+    autoplay
+    muted
+    playsinline
+    style="border: 1px solid #333; border-radius: 4px;"
+  >
+    Your browser does not support the video tag.
+  </video>
+</div>
 
 <div class="chat-container">
   <header class="chat-header">
