@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+venv/
+node_modules/
+build/  # Dossier de sortie de SvelteKit
+.svelte-kit/
