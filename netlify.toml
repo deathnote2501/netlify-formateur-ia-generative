@@ -1,0 +1,32 @@
+[build]
+  command = "npm run build"
+  publish = "build/" # SvelteKit with adapter-auto usually outputs to 'build'
+
+[build.environment]
+  # Ensure Node.js version is compatible if needed, e.g.:
+  # NODE_VERSION = "18"
+  # NPM_VERSION = "9"
+
+# Optional: If you need to pass specific environment variables from Netlify's UI
+# to the build process and make them available client-side (prefixed with VITE_),
+# you typically don't need to list them here if they are already prefixed with VITE_.
+# Netlify automatically makes VITE_ prefixed env vars available.
+# However, if you had non-VITE_ prefixed variables that Vite needed during build:
+# [build.processing]
+#   [build.processing.css]
+#     bundle = true
+#     minify = true
+#   [build.processing.js]
+#     bundle = true
+#     minify = true
+#   [build.processing.html]
+#     pretty_urls = true
+#   [build.processing.images]
+#     compress = true
+
+# Example for redirecting all non-file requests to index.html for SPA behavior,
+# though SvelteKit adapter might handle this. This is a common pattern for SPAs.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

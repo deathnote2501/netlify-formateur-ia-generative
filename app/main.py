@@ -88,6 +88,6 @@ async def authenticated_route(user: User = Depends(current_active_user)):
 
 @app.on_event("startup")
 def on_startup():
-    logger.info("AnimeMate Application startup complete. Initializing database tables...")
-    create_db_and_tables()
-    logger.info("Database tables initialization process finished.")
+    logger.info("AnimeMate Application startup complete. Database migrations are handled by the release phase.")
+    # create_db_and_tables() # Disabled for production, handled by Alembic release command
+    # logger.info("Database tables initialization process finished.") # Correspondingly commented out
